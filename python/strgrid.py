@@ -188,6 +188,10 @@ class StringGrid(object):
         """
         return '+%s+' % '+'.join(['-'*(i+2) for i in column_widths])
 
+def tablize(matrix):
+    E, G = Entry, StringGrid
+    return G([[E(str(c)) for c in r] for r in matrix]).render()
+
 def test():
     """Usage example
 
