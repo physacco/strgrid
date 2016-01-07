@@ -15,44 +15,48 @@ MySQL usually format query result into a table like this:
   +---+------+------+------+------+------+------+---+
 """
 
+import six
+from wcwidth import wcswidth
+
 class Entry(object):
     """Object that can be rendered as a cell in the grid
 
-    >>> entry = Entry("foo")
-    >>> entry = Entry("foo", align="center")
-    >>> entry = Entry(12345, align="right", width="10")
+    >>> entry = Entry(u"foo")
+    >>> entry = Entry(u"foo", align="center")
+    >>> entry = Entry(u"12345", align="right")
 
     Instance attributes:
-      repr: the string to be displayed in a cell
+      text: the string to be displayed in a cell
       align: 'left', 'right' or 'center'
-      width: effective width of repr (useful to unicode)
     """
-    def __init__(self, repr='', align='left', width=None):
+    def __init__(self, text=None, align='left'):
         """Create an instance of Entry
 
         Exceptions: TypeError, ValueError
         """
-        if repr and type(repr) is not str:
-            raise TypeError('type of repr must be str')
+        if text is None:
+            text = u''
+        else:
+            if not isinstance(text, six.text_type):
+                raise TypeError('text must be a unicode string')
+
         if align not in ['left', 'right', 'center']:
             raise ValueError('align should be left, right or center')
-        if width and type(width) not in [int, long]:
-            raise TypeError('width must be an integer')
 
-        self.repr = repr
+        self.text = text
         self.align = align
-        self.width = width or len(repr)
+        self.width = wcswidth(text)
 
     def __repr__(self):
         """Show Entry instances in an intuitive style"""
-        return '<strgrid.Entry repr=%r, align=%r, width=%r>' % \
-               (self.repr, self.align, self.width)
+        return '<strgrid.Entry text=%r, align=%r>' % \
+               (self.text, self.align)
 
-class StringGrid(object):
+class Grid(object):
     """String grid formatter
 
     >>> array2d = [[Entry(), ...], [Entry(), ...]]
-    >>> grid = StringGrid(array2d)
+    >>> grid = Grid(array2d)
     >>> print grid.render()
 
     Instance attributes:
@@ -62,7 +66,7 @@ class StringGrid(object):
       column_widths: widths of each column in the grid
     """
     def __init__(self, array2d):
-        """Create an instance of StringGrid
+        """Create an instance of Grid
 
         Exceptions: TypeError, ValueError
         """
@@ -139,7 +143,7 @@ class StringGrid(object):
             return rendered_rows
 
     def renderRow(self, index):
-        """Renderer for each row"""
+        """Render the index-th row"""
         row = self.array2d[index]
 
         result = ['|']
@@ -153,44 +157,48 @@ class StringGrid(object):
         return ''.join(result)
 
     def renderCell(self, i, j):
-        """Renderer for each cell"""
+        """Render the cell at row i, column j"""
         entry = self.array2d[i][j]
         column_width = self.column_widths[j]
         spaces = column_width - entry.width
 
         if entry.align == 'left':
-            cont = entry.repr + ' ' * spaces
+            cont = entry.text + ' ' * spaces
         elif entry.align == 'right':
-            cont = ' ' * spaces + entry.repr
+            cont = ' ' * spaces + entry.text
         else:
             if spaces % 2 == 0:
-                half = spaces / 2
-                cont = ' ' * half + entry.repr + ' ' * half
+                half = spaces // 2
+                cont = ' ' * half + entry.text + ' ' * half
             else:
-                pref = (spaces - 1) / 2
+                pref = (spaces - 1) // 2
                 post = spaces - pref
-                cont = ' ' * pref + entry.repr + ' ' * post
+                cont = ' ' * pref + entry.text + ' ' * post
 
         return ' %s ' % cont
 
     def extractStrings(self):
         """Extract strings in self.array2d"""
         def extractRow(row):
-            return [entry.repr for entry in row]
+            return [entry.text for entry in row]
         return [extractRow(row) for row in self.array2d]
 
-    @classmethod
-    def renderHorizontalSplitter(klass, column_widths):
-        """Renderer for horizontal splitter
+    @staticmethod
+    def renderHorizontalSplitter(column_widths):
+        """Render the horizontal splitter
 
         Sample Output:
         +---+------+------+------+------+------+------+---+
         """
-        return '+%s+' % '+'.join(['-'*(i+2) for i in column_widths])
+        columns = [u'-' * (w + 2) for w in column_widths]
+        return u'+%s+' % u'+'.join(columns)
+
+# Shortcuts
+E = Entry
+G = Grid
 
 def tablize(matrix):
-    E, G = Entry, StringGrid
-    return G([[E(str(c)) for c in r] for r in matrix]).render()
+    return G([[E(six.u(c)) for c in r] for r in matrix]).render()
 
 def test():
     """Usage example
@@ -199,15 +207,15 @@ def test():
     +--------+------------------+-----------------+
     | hello  |                  |      world      |
     +--------+------------------+-----------------+
-    | 女神様 | 綾波 レイ        |                 |
+    | 女神様 |    綾波 レイ     |                 |
     |     -3 | 3141592653589793 | Fate/Round Face |
     +--------+------------------+-----------------+
     """
-    array2d = [[Entry('hello'), Entry(''), Entry('world', 'center')],
-               [Entry('女神様', width=6), Entry(u'綾波 レイ'.encode('utf-8'), width=9)],
-               [Entry(str(-3), align='right'), Entry(str(3141592653589793), align='right'), Entry('Fate/Round Face')]]
-    grid = StringGrid(array2d)
-    print grid.render()
+    array2d = [[E(u'hello'), E(u''), E(u'world', 'center')],
+               [E(u'女神様'), E(u'綾波 レイ', 'center')],
+               [E(u'-3', 'right'), E(u'3141592653589793', 'right'), E(u'Fate/Round Face')]]
+    grid = G(array2d)
+    print(grid.render())
 
 if __name__ == '__main__':
     test()
